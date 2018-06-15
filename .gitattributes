@@ -1,2 +1,1484 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+/** USERS/HOUSEHOLDS/LAST ORDERS **/ 
+
+SELECT u.*,
+h.*,
+o.order_date AS last_order_date
+FROM users u
+JOIN household_characteristics h
+ON u.user_id = h.user_id
+JOIN user_last_order o
+ON o.user_id = u.user_id;
+
+SELECT MIN(household_income),
+MAX(household_income) 
+FROM household_characteristics;
+
+
+/** USER BREAKDOWN BY INCOME BUCKETS**/
+SELECT 
+CASE 
+WHEN h.household_income <=25000 THEN "<= $25,000"
+WHEN h.household_income <=50000 AND h.household_income >25000 THEN "$25,001-$50,000"
+WHEN h.household_income <=75000 AND h.household_income >50000 THEN "$50,001-$75,000"
+WHEN h.household_income <=100000 AND h.household_income >75000 THEN "$75,001-$100,000"
+WHEN h.household_income <=125000 AND h.household_income >100000 THEN "$100,001-$125,000"
+WHEN h.household_income <=150000 AND h.household_income >125000 THEN "$125,000-$150,000"
+ELSE "N/A"
+END AS Income_Brackets,
+COUNT(h.user_id) AS user_count,
+SUM(h.number_in_household) AS total_in_households,
+AVG(h.number_in_household) AS average_in_house
+FROM  household_characteristics h
+GROUP BY Income_Brackets
+ORDER BY Income_Brackets;
+
+
+
+/** USER BREAKDOWN BY REGION **/
+SELECT 
+CASE
+WHEN u.state IN ("CT","ME","MA","NH","RI","VT","NJ","NY","PA") THEN "Northeast"
+WHEN u.state IN ("IL","IN","MI","OH","WI","IA","KS","MN","MS","NE","ND","SD") THEN "Midwest"
+WHEN u.state IN ("DE","FL","GA","MD","NC","SC","VA","DC","WV","AL","KY","MS","TN","AR","LA","OK","TX") THEN "South"
+WHEN u.state IN ("AZ","CO","ID","MT","NV","NM","UT","WY","CA","WA","OR","HI","AK") THEN "West"
+END AS Region,
+COUNT(u.user_id) AS user_count,
+SUM(h.number_in_household) AS total_in_household,
+AVG(h.number_in_household) AS average_per_household
+FROM users u
+JOIN household_characteristics h
+ON h.user_id = u.user_id
+GROUP BY Region;
+
+
+
+
+/** USER BREAKDOWN BY REGION, THEN INCOME BRACKET **/
+SELECT 
+r.region AS Region,
+b.income_bucket AS Income_Bracket,
+COUNT(u.user_id) AS user_count,
+SUM(h.number_in_household) AS total_in_household,
+AVG(h.number_in_household) AS average_per_household
+FROM users u
+JOIN household_characteristics h
+ON h.user_id = u.user_id
+RIGHT JOIN Income_Buckets b
+ON h.income_id = b.income_id
+JOIN regions r
+ON r.region_id = u.region_id
+GROUP BY Region, Income_Bracket
+ORDER BY Region, h.income_id, user_count;
+
+
+
+
+
+
+
+
+/** USER BREAKDOWN BY STATE, THEN INCOME BUCKETS
+
+THIS ALLOWS YOU TO FILTER BY STATE OR INCOME BUCKET**/
+SELECT 
+u.state,
+CASE 
+WHEN h.household_income <=25000 THEN "<= $25,000"
+WHEN h.household_income <=50000 AND h.household_income >25000 THEN "$25,001-$50,000"
+WHEN h.household_income <=75000 AND h.household_income >50000 THEN "$50,001-$75,000"
+WHEN h.household_income <=100000 AND h.household_income >75000 THEN "$75,001-$100,000"
+WHEN h.household_income <=125000 AND h.household_income >100000 THEN "$100,001-$125,000"
+WHEN h.household_income <=150000 AND h.household_income >125000 THEN "$125,000-$150,000"
+ELSE "N/A"
+END AS Income_Brackets,
+COUNT(h.user_id) AS user_count,
+SUM(h.number_in_household) AS total_in_households,
+AVG(h.number_in_household) AS average_in_house
+FROM  household_characteristics h
+JOIN users u 
+ON u.user_id = h.user_id
+WHERE u.state = "CA"
+GROUP BY u.state, Income_Brackets
+ORDER BY Income_Brackets, u.state;
+
+
+
+/** USER BREAKDOWN BY STATE **/
+SELECT state,
+COUNT(user_id) AS users_in_state
+FROM users
+GROUP BY state
+ORDER BY users_in_state DESC;
+
+
+
+/** USER BREAKDOWN BY CITY **/
+SELECT state,
+city,
+COUNT(user_id) AS users_in_city
+FROM users
+GROUP BY state, city
+ORDER BY state, users_in_city;
+
+
+
+
+
+
+SELECT count(distinct state)
+FROM users;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/** INCOME BUCKET TABLE CREATION **/
+
+
+CREATE TABLE Income_Buckets(
+income_id INT NOT NULL,
+income_bucket VARCHAR(255),
+PRIMARY KEY(income_id));
+
+INSERT INTO Income_Buckets(income_id, income_bucket)
+VALUES(1, "<= $25,000"),
+(2, "$25,001-$50,000"),
+(3, "$50,001-$75,000"),
+(4, "$75,001-$100,000"),
+(5, "$100,001-$125,000"),
+(6, "$125,000-$150,00");
+
+
+SELECT 
+    *
+FROM
+    Income_Buckets;
+
+
+
+ALTER TABLE household_characteristics
+ADD income_id INT;
+
+
+
+UPDATE household_characteristics h 
+SET 
+    h.income_id = 1
+WHERE
+    h.household_income <= 25000;
+
+UPDATE household_characteristics h
+SET h.income_id = 2
+WHERE h.household_income <=50000 AND h.household_income >25000;
+
+UPDATE household_characteristics h
+SET h.income_id = 3
+WHERE h.household_income <=75000 AND h.household_income >50000;
+
+UPDATE household_characteristics h
+SET h.income_id = 4
+WHERE h.household_income <=100000 AND h.household_income >75000;
+
+UPDATE household_characteristics h
+SET h.income_id = 5
+WHERE h.household_income <=125000 AND h.household_income >100000;
+
+UPDATE household_characteristics h
+SET h.income_id = 6
+WHERE h.household_income <=150000 AND h.household_income >125000;
+
+
+
+
+/** REGION TABLE CREATION **/
+CREATE TABLE Regions(
+region_id INT,
+region varchar(255));
+
+
+INSERT INTO Regions
+VALUES (1, "Northeast"),
+(2, "Midwest"),
+(3, "South"),
+(4, "West");
+
+
+SELECT * 
+FROM Regions;
+
+
+ALTER TABLE users
+ADD COLUMN region_id INT;
+
+UPDATE users
+SET region_id = 1
+WHERE state IN ("CT","ME","MA","NH","RI","VT","NJ","NY","PA");
+
+UPDATE users
+SET region_id = 2
+WHERE state IN ("IL","IN","MI","OH","WI","IA","KS","MN","MS","NE","ND","SD");
+
+UPDATE users
+SET region_id = 3
+WHERE state IN ("DE","FL","GA","MD","NC","SC","VA","DC","WV","AL","KY","MS","TN","AR","LA","OK","TX");
+
+UPDATE users
+SET region_id = 4
+WHERE state IN ("AZ","CO","ID","MT","NV","NM","UT","WY","CA","WA","OR","HI","AK");
+
+
+SELECT u.*,
+r.region
+FROM users u
+JOIN regions r
+ON r.region_id = u.region_id;
+
+
+
+SELECT * FROM instacart.orders;
+
+SELECT COUNT(*)
+FROM orders;
+
+SELECT COUNT(days_since_prior_order)
+FROM orders
+WHERE days_since_prior_order IS NOT NULL;
+
+SELECT distinct eval_set
+FROM orders;
+
+
+SELECT COUNT(distinct order_number)
+FROM orders
+ORDER BY order_number;
+
+
+
+/** COUNT OF ORDER IDS BY ORDER NUMBER **/
+SELECT distinct order_number,
+COUNT(order_id) AS cnt
+FROM orders
+GROUP BY order_number
+ORDER BY order_number;
+
+
+
+
+
+
+/** PRODUCT COUNT BY # OF ORDERS **/
+SELECT p.product_name,
+COUNT(p.product_name) AS product_cnt
+FROM products p
+JOIN order_to_product_map m
+ON p.product_id = m.product_id
+JOIN orders o
+ON o.order_id = m.order_id
+GROUP BY p.product_name
+ORDER BY product_cnt DESC;
+
+
+
+/** MOST POP ORDER DAY **/
+SELECT order_dow,
+COUNT(order_id) AS order_cnt
+FROM orders
+GROUP by order_dow
+ORDER BY order_cnt DESC;
+
+
+
+/** MOST POP ORDER HOUR **/
+SELECT order_hour_of_day,
+COUNT(order_id) AS order_cnt
+FROM orders
+GROUP BY order_hour_of_day
+ORDER BY order_cnt DESC;
+
+
+
+/** MOST POP ORDER DAY BY REGION **/
+SELECT r.region,
+o.order_dow,
+COUNT(o.order_id) AS order_cnt
+FROM regions r
+JOIN users u
+ON u.region_id = r.region_id
+JOIN orders o 
+ON o.user_id = u.user_id
+GROUP BY r.region, o.order_dow
+ORDER BY r.region, order_cnt DESC;
+
+
+
+
+/** MOST POP ORDER HOUR BY REGION **/
+SELECT r.region,
+o.order_hour_of_day,
+COUNT(distinct o.order_id) AS order_cnt
+FROM regions r
+JOIN users u
+ON u.region_id = r.region_id
+JOIN orders o 
+ON o.user_id = u.user_id
+GROUP BY r.region, o.order_hour_of_day
+ORDER BY r.region, order_cnt DESC;
+
+
+
+
+SELECT row_number() OVER (ORDER BY COUNT(distinct o.order_id) DESC) AS id,
+o.order_hour_of_day,
+COUNT(distinct o.order_id) AS order_cnt
+FROM users u
+JOIN orders o 
+ON o.user_id = u.user_id
+GROUP BY o.order_hour_of_day
+ORDER BY  order_cnt DESC;
+
+
+
+
+/** TOP PRODUCTS Overall **/
+SELECT row_number() OVER (ORDER BY COUNT(o.order_id) DESC) AS id,
+p.product_name,
+COUNT(distinct o.order_id) AS order_cnt
+FROM regions r
+JOIN users u
+ON u.region_id = r.region_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+GROUP BY p.product_name
+ORDER BY order_cnt DESC
+LIMIT 10;
+
+
+
+
+SELECT *
+FROM (SELECT r.region AS region_name,
+p.product_name,
+COUNT(o.order_id) AS order_cnt
+FROM regions r
+JOIN users u
+ON u.region_id = r.region_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+GROUP BY region_name, p.product_name
+ORDER BY region_name, order_cnt DESC) sub
+GROUP BY sub.region_name;
+
+
+
+
+
+/** MOST POP AISLES BY REGION **/
+SELECT r.region,
+a.aisle,
+COUNT(o.order_id) AS order_cnt
+FROM regions r
+JOIN users u
+ON u.region_id = r.region_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+JOIN aisles a
+ON a.aisle_id = p.aisle_id
+GROUP BY r.region, a.aisle
+ORDER BY r.region, order_cnt DESC;
+
+
+
+
+
+
+/** MOST POP DEPARTMENT BY REGION **/
+SELECT r.region,
+d.department,
+COUNT(distinct o.order_id) AS order_cnt
+FROM regions r
+JOIN users u
+ON u.region_id = r.region_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+JOIN departments d
+ON d.department_id = p.department_id
+GROUP BY r.region, d.department_id
+ORDER BY r.region, order_cnt DESC;
+
+SELECT COUNT(o.order_id)
+FROM orders o
+JOIN order_to_product_map m
+ON m.order_id = o.order_id
+JOIN products p 
+ON p.product_id = m.product_id;
+
+
+
+
+
+
+
+SELECT row_number() OVER (ORDER BY COUNT(o.order_id) DESC) AS id,
+r.region AS region,
+p.product_name AS product_name,
+COUNT(o.order_id) AS order_cnt
+FROM regions r
+JOIN users u
+ON u.region_id = r.region_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+WHERE r.region = "MidWest"
+GROUP BY region, product_name
+ORDER BY region, order_cnt DESC
+LIMIT 10;
+
+
+/** LIST OF TOP 10s BY REGION **/
+
+SELECT *
+FROM (SELECT 
+	row_number() OVER (ORDER BY COUNT(o.order_id) DESC) AS id,
+	r.region AS region,
+	p.product_name AS product_name,
+	COUNT(o.order_id) AS order_cnt
+FROM 
+	regions r
+JOIN 
+	users u
+ON 
+	u.region_id = r.region_id
+JOIN 
+	orders o
+ON 
+	o.user_id = u.user_id
+JOIN 
+	order_to_product_map m
+ON 
+	o.order_id = m.order_id
+JOIN products p    
+ON 
+	p.product_id = m.product_id
+WHERE 
+	r.region = "South"
+GROUP BY 
+	region, product_name
+ORDER BY 
+	region, order_cnt DESC
+LIMIT 10) sub
+JOIN (SELECT 
+	row_number() OVER (ORDER BY COUNT(o.order_id) DESC) AS id,
+	r.region AS region,
+	p.product_name AS product_name,
+	COUNT(o.order_id) AS order_cnt
+FROM 
+	regions r
+JOIN 
+	users u
+ON 
+	u.region_id = r.region_id
+JOIN 
+	orders o
+ON 
+	o.user_id = u.user_id
+JOIN 
+	order_to_product_map m
+ON 
+	o.order_id = m.order_id
+JOIN 
+	products p    
+ON 
+	p.product_id = m.product_id
+WHERE 
+	r.region = "MidWest"
+GROUP BY 
+	region, product_name
+ORDER BY 
+	region, order_cnt DESC
+LIMIT 10) sub2
+ON 
+	sub.id = sub2.id
+JOIN (
+SELECT row_number() OVER (ORDER BY COUNT(o.order_id) DESC) AS id,
+r.region AS region,
+p.product_name AS product_name,
+COUNT(o.order_id) AS order_cnt
+FROM regions r
+JOIN users u
+ON u.region_id = r.region_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+WHERE r.region = "Northeast"
+GROUP BY region, product_name
+ORDER BY region, order_cnt DESC
+LIMIT 10) sub3
+ON sub.id = sub3.id
+JOIN (SELECT row_number() OVER (ORDER BY COUNT(o.order_id) DESC) AS id,
+r.region AS region,
+p.product_name AS product_name,
+COUNT(o.order_id) AS order_cnt
+FROM regions r
+JOIN users u
+ON u.region_id = r.region_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+WHERE r.region = "West"
+GROUP BY region, product_name
+ORDER BY region, order_cnt DESC
+LIMIT 10) sub4
+ON sub.id = sub4.id;
+
+
+
+
+/** UNION OF TOP 10s **/
+
+SELECT *
+FROM (SELECT 
+	row_number() OVER (ORDER BY COUNT(o.order_id) DESC) AS id,
+	r.region AS region,
+	p.product_name AS product_name,
+	COUNT(o.order_id) AS order_cnt
+FROM 
+	regions r
+JOIN 
+	users u
+ON 
+	u.region_id = r.region_id
+JOIN 
+	orders o
+ON 
+	o.user_id = u.user_id
+JOIN 
+	order_to_product_map m
+ON 
+	o.order_id = m.order_id
+JOIN products p    
+ON 
+	p.product_id = m.product_id
+WHERE 
+	r.region = "South"
+GROUP BY 
+	region, product_name
+ORDER BY 
+	region, order_cnt DESC
+LIMIT 10) sub
+UNION 
+(SELECT 
+	row_number() OVER (ORDER BY COUNT(o.order_id) DESC) AS id,
+	r.region AS region,
+	p.product_name AS product_name,
+	COUNT(o.order_id) AS order_cnt
+FROM 
+	regions r
+JOIN 
+	users u
+ON 
+	u.region_id = r.region_id
+JOIN 
+	orders o
+ON 
+	o.user_id = u.user_id
+JOIN 
+	order_to_product_map m
+ON 
+	o.order_id = m.order_id
+JOIN products p    
+ON 
+	p.product_id = m.product_id
+WHERE 
+	r.region = "MidWest"
+GROUP BY 
+	region, product_name
+ORDER BY 
+	region, order_cnt DESC
+LIMIT 10)
+UNION
+(SELECT 
+	row_number() OVER (ORDER BY COUNT(o.order_id) DESC) AS id,
+	r.region AS region,
+	p.product_name AS product_name,
+	COUNT(o.order_id) AS order_cnt
+FROM 
+	regions r
+JOIN 
+	users u
+ON 
+	u.region_id = r.region_id
+JOIN 
+	orders o
+ON 
+	o.user_id = u.user_id
+JOIN 
+	order_to_product_map m
+ON 
+	o.order_id = m.order_id
+JOIN products p    
+ON 
+	p.product_id = m.product_id
+WHERE 
+	r.region = "West"
+GROUP BY 
+	region, product_name
+ORDER BY 
+	region, order_cnt DESC
+LIMIT 10)
+UNION 
+(SELECT 
+	row_number() OVER (ORDER BY COUNT(o.order_id) DESC) AS id,
+	r.region AS region,
+	p.product_name AS product_name,
+	COUNT(o.order_id) AS order_cnt
+FROM 
+	regions r
+JOIN 
+	users u
+ON 
+	u.region_id = r.region_id
+JOIN 
+	orders o
+ON 
+	o.user_id = u.user_id
+JOIN 
+	order_to_product_map m
+ON 
+	o.order_id = m.order_id
+JOIN products p    
+ON 
+	p.product_id = m.product_id
+WHERE 
+	r.region = "Northeast"
+GROUP BY 
+	region, product_name
+ORDER BY 
+	region, order_cnt DESC
+LIMIT 10);
+
+
+
+
+
+
+/** TOP 10 DEPARTMENTS BY REGION **/
+
+SELECT *
+FROM(SELECT row_number() OVER (ORDER BY COUNT(distinct o.order_id) DESC) AS id, 
+r.region,
+d.department,
+COUNT(distinct o.order_id) AS order_cnt
+FROM regions r
+JOIN users u
+ON u.region_id = r.region_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+JOIN departments d
+ON d.department_id = p.department_id
+WHERE r.region = "Midwest"
+GROUP BY r.region, d.department_id
+ORDER BY r.region, order_cnt DESC
+LIMIT 10) sub
+UNION 
+(SELECT row_number() OVER (ORDER BY COUNT(distinct o.order_id) DESC) AS id, 
+r.region,
+d.department,
+COUNT(distinct o.order_id) AS order_cnt
+FROM regions r
+JOIN users u
+ON u.region_id = r.region_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+JOIN departments d
+ON d.department_id = p.department_id
+WHERE r.region = "West"
+GROUP BY r.region, d.department_id
+ORDER BY r.region, order_cnt DESC
+LIMIT 10)
+UNION
+(SELECT row_number() OVER (ORDER BY COUNT(distinct o.order_id) DESC) AS id, 
+r.region,
+d.department,
+COUNT(distinct o.order_id) AS order_cnt
+FROM regions r
+JOIN users u
+ON u.region_id = r.region_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+JOIN departments d
+ON d.department_id = p.department_id
+WHERE r.region = "South"
+GROUP BY r.region, d.department_id
+ORDER BY r.region, order_cnt DESC
+LIMIT 10)
+UNION 
+(SELECT row_number() OVER (ORDER BY COUNT(distinct o.order_id) DESC) AS id, 
+r.region,
+d.department,
+COUNT(distinct o.order_id) AS order_cnt
+FROM regions r
+JOIN users u
+ON u.region_id = r.region_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+JOIN departments d
+ON d.department_id = p.department_id
+WHERE r.region = "Northeast"
+GROUP BY r.region, d.department_id
+ORDER BY r.region, order_cnt DESC
+LIMIT 10);
+
+
+
+/** top ten aisles by region **/
+
+SELECT *
+FROM (SELECT row_number() OVER (ORDER BY COUNT(distinct o.order_id) DESC) AS id,
+r.region,
+a.aisle,
+COUNT(distinct o.order_id) AS order_cnt
+FROM regions r
+JOIN users u
+ON u.region_id = r.region_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+JOIN aisles a
+ON a.aisle_id = p.aisle_id
+WHERE r.region = "Midwest"
+GROUP BY r.region, a.aisle
+ORDER BY r.region, order_cnt DESC
+LIMIT 10) sub
+UNION 
+(SELECT row_number() OVER (ORDER BY COUNT(distinct o.order_id) DESC) AS id,
+r.region,
+a.aisle,
+COUNT(distinct o.order_id) AS order_cnt
+FROM regions r
+JOIN users u
+ON u.region_id = r.region_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+JOIN aisles a
+ON a.aisle_id = p.aisle_id
+WHERE r.region = "South"
+GROUP BY r.region, a.aisle
+ORDER BY r.region, order_cnt DESC
+LIMIT 10)
+UNION
+(SELECT row_number() OVER (ORDER BY COUNT(distinct o.order_id) DESC) AS id,
+r.region,
+a.aisle,
+COUNT(distinct o.order_id) AS order_cnt
+FROM regions r
+JOIN users u
+ON u.region_id = r.region_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+JOIN aisles a
+ON a.aisle_id = p.aisle_id
+WHERE r.region = "Northeast"
+GROUP BY r.region, a.aisle
+ORDER BY r.region, order_cnt DESC
+LIMIT 10)
+UNION
+(SELECT row_number() OVER (ORDER BY COUNT(distinct o.order_id) DESC) AS id,
+r.region,
+a.aisle,
+COUNT(distinct o.order_id) AS order_cnt
+FROM regions r
+JOIN users u
+ON u.region_id = r.region_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+JOIN aisles a
+ON a.aisle_id = p.aisle_id
+WHERE r.region = "West"
+GROUP BY r.region, a.aisle
+ORDER BY r.region, order_cnt DESC
+LIMIT 10);
+
+
+
+
+
+
+/** TOP 10 PRODUCTS GROUPED BY REGION AND THEN INCOME BUCKET
+WHERE REGION IS WEST**/
+
+SELECT *
+FROM (SELECT row_number() OVER (ORDER BY COUNT(distinct o.order_id) DESC) AS id,
+r.region,
+b.income_bucket,
+p.product_name,
+COUNT(distinct o.order_id) AS order_cnt
+FROM household_characteristics h
+JOIN users u
+ON u.user_id = h.user_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+JOIN income_buckets b
+ON b.income_id = h.income_id
+JOIN regions r
+ON r.region_id = u.region_id
+WHERE r.region = "West"
+AND b.income_id = 1
+GROUP BY r.region,b.income_bucket, p.product_name
+ORDER BY r.region, b.income_id, order_cnt DESC
+LIMIT 10) sub
+UNION
+(SELECT row_number() OVER (ORDER BY COUNT(distinct o.order_id) DESC) AS id,
+r.region,
+b.income_bucket,
+p.product_name,
+COUNT(distinct o.order_id) AS order_cnt
+FROM household_characteristics h
+JOIN users u
+ON u.user_id = h.user_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+JOIN income_buckets b
+ON b.income_id = h.income_id
+JOIN regions r
+ON r.region_id = u.region_id
+WHERE r.region = "West"
+AND b.income_id = 2
+GROUP BY r.region,b.income_bucket, p.product_name
+ORDER BY r.region, b.income_id, order_cnt DESC
+LIMIT 10)
+UNION
+(SELECT row_number() OVER (ORDER BY COUNT(distinct o.order_id) DESC) AS id,
+r.region,
+b.income_bucket,
+p.product_name,
+COUNT(distinct o.order_id) AS order_cnt
+FROM household_characteristics h
+JOIN users u
+ON u.user_id = h.user_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+JOIN income_buckets b
+ON b.income_id = h.income_id
+JOIN regions r
+ON r.region_id = u.region_id
+WHERE r.region = "West"
+AND b.income_id = 3
+GROUP BY r.region,b.income_bucket, p.product_name
+ORDER BY r.region, b.income_id, order_cnt DESC
+LIMIT 10)
+UNION
+(SELECT row_number() OVER (ORDER BY COUNT(distinct o.order_id) DESC) AS id,
+r.region,
+b.income_bucket,
+p.product_name,
+COUNT(distinct o.order_id) AS order_cnt
+FROM household_characteristics h
+JOIN users u
+ON u.user_id = h.user_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+JOIN income_buckets b
+ON b.income_id = h.income_id
+JOIN regions r
+ON r.region_id = u.region_id
+WHERE r.region = "West"
+AND b.income_id = 4
+GROUP BY r.region,b.income_bucket, p.product_name
+ORDER BY r.region, b.income_id, order_cnt DESC
+LIMIT 10)
+UNION
+(SELECT row_number() OVER (ORDER BY COUNT(distinct o.order_id) DESC) AS id,
+r.region,
+b.income_bucket,
+p.product_name,
+COUNT(distinct o.order_id) AS order_cnt
+FROM household_characteristics h
+JOIN users u
+ON u.user_id = h.user_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+JOIN income_buckets b
+ON b.income_id = h.income_id
+JOIN regions r
+ON r.region_id = u.region_id
+WHERE r.region = "West"
+AND b.income_id = 5
+GROUP BY r.region,b.income_bucket, p.product_name
+ORDER BY r.region, b.income_id, order_cnt DESC
+LIMIT 10)
+UNION
+(SELECT row_number() OVER (ORDER BY COUNT(distinct o.order_id) DESC) AS id,
+r.region,
+b.income_bucket,
+p.product_name,
+COUNT(distinct o.order_id) AS order_cnt
+FROM household_characteristics h
+JOIN users u
+ON u.user_id = h.user_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+JOIN income_buckets b
+ON b.income_id = h.income_id
+JOIN regions r
+ON r.region_id = u.region_id
+WHERE r.region = "West"
+AND b.income_id = 6
+GROUP BY r.region,b.income_bucket, p.product_name
+ORDER BY r.region, b.income_id, order_cnt DESC
+LIMIT 10);
+
+
+
+
+
+/** TOP 10 PRODUCTS GROUPED BY REGION AND THEN INCOME BUCKET
+WHERE REGION IS SOUTH**/
+
+SELECT *
+FROM (SELECT row_number() OVER (ORDER BY COUNT(distinct o.order_id) DESC) AS id,
+r.region,
+b.income_bucket,
+p.product_name,
+COUNT(distinct o.order_id) AS order_cnt
+FROM household_characteristics h
+JOIN users u
+ON u.user_id = h.user_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+JOIN income_buckets b
+ON b.income_id = h.income_id
+JOIN regions r
+ON r.region_id = u.region_id
+WHERE r.region = "South"
+AND b.income_id = 1
+GROUP BY r.region,b.income_bucket, p.product_name
+ORDER BY r.region, b.income_id, order_cnt DESC
+LIMIT 10) sub
+UNION
+(SELECT row_number() OVER (ORDER BY COUNT(distinct o.order_id) DESC) AS id,
+r.region,
+b.income_bucket,
+p.product_name,
+COUNT(distinct o.order_id) AS order_cnt
+FROM household_characteristics h
+JOIN users u
+ON u.user_id = h.user_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+JOIN income_buckets b
+ON b.income_id = h.income_id
+JOIN regions r
+ON r.region_id = u.region_id
+WHERE r.region = "South"
+AND b.income_id = 2
+GROUP BY r.region,b.income_bucket, p.product_name
+ORDER BY r.region, b.income_id, order_cnt DESC
+LIMIT 10)
+UNION
+(SELECT row_number() OVER (ORDER BY COUNT(distinct o.order_id) DESC) AS id,
+r.region,
+b.income_bucket,
+p.product_name,
+COUNT(distinct o.order_id) AS order_cnt
+FROM household_characteristics h
+JOIN users u
+ON u.user_id = h.user_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+JOIN income_buckets b
+ON b.income_id = h.income_id
+JOIN regions r
+ON r.region_id = u.region_id
+WHERE r.region = "South"
+AND b.income_id = 3
+GROUP BY r.region,b.income_bucket, p.product_name
+ORDER BY r.region, b.income_id, order_cnt DESC
+LIMIT 10)
+UNION
+(SELECT row_number() OVER (ORDER BY COUNT(distinct o.order_id) DESC) AS id,
+r.region,
+b.income_bucket,
+p.product_name,
+COUNT(distinct o.order_id) AS order_cnt
+FROM household_characteristics h
+JOIN users u
+ON u.user_id = h.user_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+JOIN income_buckets b
+ON b.income_id = h.income_id
+JOIN regions r
+ON r.region_id = u.region_id
+WHERE r.region = "South"
+AND b.income_id = 4
+GROUP BY r.region,b.income_bucket, p.product_name
+ORDER BY r.region, b.income_id, order_cnt DESC
+LIMIT 10)
+UNION
+(SELECT row_number() OVER (ORDER BY COUNT(distinct o.order_id) DESC) AS id,
+r.region,
+b.income_bucket,
+p.product_name,
+COUNT(distinct o.order_id) AS order_cnt
+FROM household_characteristics h
+JOIN users u
+ON u.user_id = h.user_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+JOIN income_buckets b
+ON b.income_id = h.income_id
+JOIN regions r
+ON r.region_id = u.region_id
+WHERE r.region = "South"
+AND b.income_id = 5
+GROUP BY r.region,b.income_bucket, p.product_name
+ORDER BY r.region, b.income_id, order_cnt DESC
+LIMIT 10)
+UNION
+(SELECT row_number() OVER (ORDER BY COUNT(distinct o.order_id) DESC) AS id,
+r.region,
+b.income_bucket,
+p.product_name,
+COUNT(distinct o.order_id) AS order_cnt
+FROM household_characteristics h
+JOIN users u
+ON u.user_id = h.user_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+JOIN income_buckets b
+ON b.income_id = h.income_id
+JOIN regions r
+ON r.region_id = u.region_id
+WHERE r.region = "South"
+AND b.income_id = 6
+GROUP BY r.region,b.income_bucket, p.product_name
+ORDER BY r.region, b.income_id, order_cnt DESC
+LIMIT 10);
+
+
+
+
+/** TOP 10 PRODUCTS GROUPED BY REGION AND THEN INCOME BUCKET
+WHERE REGION IS NORTHEAST**/
+
+
+
+SELECT *
+FROM (SELECT row_number() OVER (ORDER BY COUNT(distinct o.order_id) DESC) AS id,
+r.region,
+b.income_bucket,
+p.product_name,
+COUNT(distinct o.order_id) AS order_cnt
+FROM household_characteristics h
+JOIN users u
+ON u.user_id = h.user_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+JOIN income_buckets b
+ON b.income_id = h.income_id
+JOIN regions r
+ON r.region_id = u.region_id
+WHERE r.region = "Northeast"
+AND b.income_id = 1
+GROUP BY r.region,b.income_bucket, p.product_name
+ORDER BY r.region, b.income_id, order_cnt DESC
+LIMIT 10) sub
+UNION
+(SELECT row_number() OVER (ORDER BY COUNT(distinct o.order_id) DESC) AS id,
+r.region,
+b.income_bucket,
+p.product_name,
+COUNT(distinct o.order_id) AS order_cnt
+FROM household_characteristics h
+JOIN users u
+ON u.user_id = h.user_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+JOIN income_buckets b
+ON b.income_id = h.income_id
+JOIN regions r
+ON r.region_id = u.region_id
+WHERE r.region = "Northeast"
+AND b.income_id = 2
+GROUP BY r.region,b.income_bucket, p.product_name
+ORDER BY r.region, b.income_id, order_cnt DESC
+LIMIT 10)
+UNION
+(SELECT row_number() OVER (ORDER BY COUNT(distinct o.order_id) DESC) AS id,
+r.region,
+b.income_bucket,
+p.product_name,
+COUNT(distinct o.order_id) AS order_cnt
+FROM household_characteristics h
+JOIN users u
+ON u.user_id = h.user_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+JOIN income_buckets b
+ON b.income_id = h.income_id
+JOIN regions r
+ON r.region_id = u.region_id
+WHERE r.region = "Northeast"
+AND b.income_id = 3
+GROUP BY r.region,b.income_bucket, p.product_name
+ORDER BY r.region, b.income_id, order_cnt DESC
+LIMIT 10)
+UNION
+(SELECT row_number() OVER (ORDER BY COUNT(distinct o.order_id) DESC) AS id,
+r.region,
+b.income_bucket,
+p.product_name,
+COUNT(distinct o.order_id) AS order_cnt
+FROM household_characteristics h
+JOIN users u
+ON u.user_id = h.user_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+JOIN income_buckets b
+ON b.income_id = h.income_id
+JOIN regions r
+ON r.region_id = u.region_id
+WHERE r.region = "Northeast"
+AND b.income_id = 4
+GROUP BY r.region,b.income_bucket, p.product_name
+ORDER BY r.region, b.income_id, order_cnt DESC
+LIMIT 10)
+UNION
+(SELECT row_number() OVER (ORDER BY COUNT(distinct o.order_id) DESC) AS id,
+r.region,
+b.income_bucket,
+p.product_name,
+COUNT(distinct o.order_id) AS order_cnt
+FROM household_characteristics h
+JOIN users u
+ON u.user_id = h.user_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+JOIN income_buckets b
+ON b.income_id = h.income_id
+JOIN regions r
+ON r.region_id = u.region_id
+WHERE r.region = "Northeast"
+AND b.income_id = 5
+GROUP BY r.region,b.income_bucket, p.product_name
+ORDER BY r.region, b.income_id, order_cnt DESC
+LIMIT 10)
+UNION
+(SELECT row_number() OVER (ORDER BY COUNT(distinct o.order_id) DESC) AS id,
+r.region,
+b.income_bucket,
+p.product_name,
+COUNT(distinct o.order_id) AS order_cnt
+FROM household_characteristics h
+JOIN users u
+ON u.user_id = h.user_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+JOIN income_buckets b
+ON b.income_id = h.income_id
+JOIN regions r
+ON r.region_id = u.region_id
+WHERE r.region = "Northeast"
+AND b.income_id = 6
+GROUP BY r.region,b.income_bucket, p.product_name
+ORDER BY r.region, b.income_id, order_cnt DESC
+LIMIT 10);
+
+
+
+
+/** TOP 10 PRODUCTS GROUPED BY REGION AND THEN INCOME BUCKET
+WHERE REGION IS Midwest**/
+
+
+
+
+SELECT *
+FROM (SELECT row_number() OVER (ORDER BY COUNT(distinct o.order_id) DESC) AS id,
+r.region,
+b.income_bucket,
+p.product_name,
+COUNT(distinct o.order_id) AS order_cnt
+FROM household_characteristics h
+JOIN users u
+ON u.user_id = h.user_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+JOIN income_buckets b
+ON b.income_id = h.income_id
+JOIN regions r
+ON r.region_id = u.region_id
+WHERE r.region = "Midwest"
+AND b.income_id = 1
+GROUP BY r.region,b.income_bucket, p.product_name
+ORDER BY r.region, b.income_id, order_cnt DESC
+LIMIT 10) sub
+UNION
+(SELECT row_number() OVER (ORDER BY COUNT(distinct o.order_id) DESC) AS id,
+r.region,
+b.income_bucket,
+p.product_name,
+COUNT(distinct o.order_id) AS order_cnt
+FROM household_characteristics h
+JOIN users u
+ON u.user_id = h.user_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+JOIN income_buckets b
+ON b.income_id = h.income_id
+JOIN regions r
+ON r.region_id = u.region_id
+WHERE r.region = "Midwest"
+AND b.income_id = 2
+GROUP BY r.region,b.income_bucket, p.product_name
+ORDER BY r.region, b.income_id, order_cnt DESC
+LIMIT 10)
+UNION
+(SELECT row_number() OVER (ORDER BY COUNT(distinct o.order_id) DESC) AS id,
+r.region,
+b.income_bucket,
+p.product_name,
+COUNT(distinct o.order_id) AS order_cnt
+FROM household_characteristics h
+JOIN users u
+ON u.user_id = h.user_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+JOIN income_buckets b
+ON b.income_id = h.income_id
+JOIN regions r
+ON r.region_id = u.region_id
+WHERE r.region = "Midwest"
+AND b.income_id = 3
+GROUP BY r.region,b.income_bucket, p.product_name
+ORDER BY r.region, b.income_id, order_cnt DESC
+LIMIT 10)
+UNION
+(SELECT row_number() OVER (ORDER BY COUNT(distinct o.order_id) DESC) AS id,
+r.region,
+b.income_bucket,
+p.product_name,
+COUNT(distinct o.order_id) AS order_cnt
+FROM household_characteristics h
+JOIN users u
+ON u.user_id = h.user_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+JOIN income_buckets b
+ON b.income_id = h.income_id
+JOIN regions r
+ON r.region_id = u.region_id
+WHERE r.region = "Midwest"
+AND b.income_id = 4
+GROUP BY r.region,b.income_bucket, p.product_name
+ORDER BY r.region, b.income_id, order_cnt DESC
+LIMIT 10)
+UNION
+(SELECT row_number() OVER (ORDER BY COUNT(distinct o.order_id) DESC) AS id,
+r.region,
+b.income_bucket,
+p.product_name,
+COUNT(distinct o.order_id) AS order_cnt
+FROM household_characteristics h
+JOIN users u
+ON u.user_id = h.user_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+JOIN income_buckets b
+ON b.income_id = h.income_id
+JOIN regions r
+ON r.region_id = u.region_id
+WHERE r.region = "Midwest"
+AND b.income_id = 5
+GROUP BY r.region,b.income_bucket, p.product_name
+ORDER BY r.region, b.income_id, order_cnt DESC
+LIMIT 10)
+UNION
+(SELECT row_number() OVER (ORDER BY COUNT(distinct o.order_id) DESC) AS id,
+r.region,
+b.income_bucket,
+p.product_name,
+COUNT(distinct o.order_id) AS order_cnt
+FROM household_characteristics h
+JOIN users u
+ON u.user_id = h.user_id
+JOIN orders o
+ON o.user_id = u.user_id
+JOIN order_to_product_map m
+ON o.order_id = m.order_id
+JOIN products p    
+ON p.product_id = m.product_id
+JOIN income_buckets b
+ON b.income_id = h.income_id
+JOIN regions r
+ON r.region_id = u.region_id
+WHERE r.region = "Midwest"
+AND b.income_id = 6
+GROUP BY r.region,b.income_bucket, p.product_name
+ORDER BY r.region, b.income_id, order_cnt DESC
+LIMIT 10);
+
