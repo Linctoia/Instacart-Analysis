@@ -253,20 +253,6 @@ ON r.region_id = u.region_id;
 
 SELECT * FROM instacart.orders;
 
-SELECT COUNT(*)
-FROM orders;
-
-SELECT COUNT(days_since_prior_order)
-FROM orders
-WHERE days_since_prior_order IS NOT NULL;
-
-SELECT distinct eval_set
-FROM orders;
-
-
-SELECT COUNT(distinct order_number)
-FROM orders
-ORDER BY order_number;
 
 
 
@@ -282,7 +268,7 @@ ORDER BY order_number;
 
 
 
-/** PRODUCT COUNT BY # OF ORDERS **/
+/** ORDER COUNT BY PRODUCT NAME **/
 SELECT p.product_name,
 COUNT(p.product_name) AS product_cnt
 FROM products p
@@ -355,7 +341,7 @@ ORDER BY  order_cnt DESC;
 
 
 
-/** TOP PRODUCTS Overall **/
+/** TOP PRODUCTS OVERAll **/
 SELECT row_number() OVER (ORDER BY COUNT(o.order_id) DESC) AS id,
 p.product_name,
 COUNT(distinct o.order_id) AS order_cnt
@@ -375,22 +361,6 @@ LIMIT 10;
 
 
 
-SELECT *
-FROM (SELECT r.region AS region_name,
-p.product_name,
-COUNT(o.order_id) AS order_cnt
-FROM regions r
-JOIN users u
-ON u.region_id = r.region_id
-JOIN orders o
-ON o.user_id = u.user_id
-JOIN order_to_product_map m
-ON o.order_id = m.order_id
-JOIN products p    
-ON p.product_id = m.product_id
-GROUP BY region_name, p.product_name
-ORDER BY region_name, order_cnt DESC) sub
-GROUP BY sub.region_name;
 
 
 
